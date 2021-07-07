@@ -1,44 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Reflection;
 
 namespace Test
 {
     public abstract class Model
     {
-        private Column primaryKey = null;
-
-        private Column createdAtColumn = null;
-
-        private Column updatedAtColumn = null;
-
-        private List<Column> columns = new List<Column>();
-
         private bool exists = false;
+
+        private ModelPrototype prototype;
+
+        private object[] original;
 
         public Model()
         {
-            var properties = this.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            foreach (var property in properties)
-            {
-                var columnAttribute = property.GetCustomAttribute<ColumnAttribute>();
-                if (columnAttribute == null) continue;
-                var column = new Column(property, columnAttribute.Name);
-                if (columnAttribute is PrimaryKeyAttribute)
-                {
-                    this.primaryKey = column;
-                }
-                else
-                {
-                    this.columns.Add(column);
-
-                    if (columnAttribute is CreatedAtAttribute)
-                        this.createdAtColumn = column;
-                    else if (columnAttribute is UpdatedAtAttribute)
-                        this.updatedAtColumn = column;
-                }
-            }
+            this.prototype = ModelPrototype.Get(this);
+            this.original = new object[this.prototype.ColumnsCount];
         }
 
         public virtual string GetTableName()
@@ -48,17 +25,18 @@ namespace Test
 
         public void Fill(DataRow row)
         {
-            foreach (var column in this.columns)
+            foreach (var column in this.prototype.Columns)
             {
-                column.OriginalValue = row[column.ColumnName];
-                column.Property.SetValue(this, column.OriginalValue);
+                object value = row[column.ColumnName];
+                this.original[column.Index] = value;
+                column.Property.SetValue(this, value);
             }
         }
 
         protected IDictionary<string, object> GetAttributesForInsert()
         {
             Dictionary<string, object> data = new Dictionary<string, object>();
-            foreach (var column in this.columns)
+            foreach (var column in this.prototype.Columns)
             {
                 data[column.ColumnName] = column.Property.GetValue(this);
             }
@@ -68,10 +46,11 @@ namespace Test
         protected IDictionary<string, object> GetDirtyAttributes()
         {
             Dictionary<string, object> data = new Dictionary<string, object>();
-            foreach (var column in this.columns)
+            foreach (var column in this.prototype.Columns)
             {
                 object currentValue = column.Property.GetValue(this);
-                if (! Object.Equals(column.OriginalValue, currentValue))
+                object originalValue = this.original[column.Index];
+                if (! Object.Equals(originalValue, currentValue))
                 {
                     data[column.ColumnName] = currentValue;
                 }
@@ -81,9 +60,10 @@ namespace Test
 
         protected void SyncOriginalColumnValues()
         {
-            foreach (var column in this.columns)
+            foreach (var column in this.prototype.Columns)
             {
-                column.OriginalValue = column.Property.GetValue(this);
+                Console.WriteLine($"{column.Index} of {this.original.Length}");
+                this.original[column.Index] = column.Property.GetValue(this);
             }
         }
 
@@ -108,13 +88,20 @@ namespace Test
         protected bool PerformInsert()
         {
             var now = this.FreshTimestamp();
-            this.createdAtColumn?.Property.SetValue(this, now);
-            this.updatedAtColumn?.Property.SetValue(this, now);
+            this.prototype.CreatedAtColumn?.Property.SetValue(this, now);
+            this.prototype.UpdatedAtColumn?.Property.SetValue(this, now);
 
             var attributes = this.GetAttributesForInsert();
-            foreach (var attr in attributes)
+            var tableName = this.GetTableName();
+
+            if (this.prototype.AutoIncrements)
             {
-                Console.WriteLine($" Inserted ==> {attr.Key} = {attr.Value}");
+                object id = DB.InsertGetId(tableName, attributes);
+                this.prototype.PrimaryKey.Property.SetValue(this, id);
+            }
+            else
+            {
+                DB.Insert(tableName, attributes);
             }
 
             return true;
@@ -126,17 +113,16 @@ namespace Test
 
             if (dirty.Count == 0) return true;
 
-            if (this.updatedAtColumn != null)
+            if (this.prototype.UpdatedAtColumn != null)
             {
                 var now = this.FreshTimestamp();
-                this.updatedAtColumn.Property.SetValue(this, now);
-                dirty[this.updatedAtColumn.ColumnName] = now;
+                this.prototype.UpdatedAtColumn.Property.SetValue(this, now);
+                dirty[this.prototype.UpdatedAtColumn.ColumnName] = now;
             }
 
-            foreach (var attr in dirty)
-            {
-                Console.WriteLine($" Updated ==> {attr.Key} = {attr.Value}");
-            }
+            var id = this.prototype.PrimaryKey.Property.GetValue(this);
+            var tableName = this.GetTableName();
+            DB.Update(tableName, id, dirty);
 
             return true;
         }

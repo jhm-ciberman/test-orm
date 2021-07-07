@@ -8,12 +8,13 @@ namespace Test
 
         public string ColumnName { get; private set; }
 
-        public object OriginalValue { get; set; }
+        public int Index { get; private set; }
 
-        public Column(PropertyInfo property, string columnName)
+        public Column(PropertyInfo property, string columnName, int index)
         {
             this.Property = property;
             this.ColumnName = columnName ?? property.Name;
+            this.Index = index;
         }
     }
 }

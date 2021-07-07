@@ -7,6 +7,9 @@ namespace Test
     {
         static void Main(string[] args)
         {
+            DB.CreateTable("Dog", "DogId");
+            DB.CreateTable("Person", "PersonId");
+
             Dog dog1 = new Dog();
             dog1.Name = "Pepe el perro";
             dog1.Save();
@@ -17,6 +20,8 @@ namespace Test
 
             dog2.Name = "Juancho el perro copado";
             dog2.Save();
+
+            new Person();
         }
     }
 }
