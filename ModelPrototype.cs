@@ -4,23 +4,8 @@ using System.Reflection;
 
 namespace Test
 {
-    public class ModelPrototype
+    internal class ModelPrototype
     {
-        private static Dictionary<Guid, ModelPrototype> cache = new Dictionary<Guid, ModelPrototype>();
-
-        public static ModelPrototype Get(Model model)
-        {
-            Type type = model.GetType();
-            Guid guid = type.GUID;
-            if (! ModelPrototype.cache.TryGetValue(guid, out ModelPrototype modelPrototype))
-            {
-                modelPrototype = new ModelPrototype(type);
-                ModelPrototype.cache[guid] = modelPrototype;
-            }
-
-            return modelPrototype;
-        }
-
         public Column PrimaryKey { get; set; } = null;
 
         public Column CreatedAtColumn { get; set; } = null;
@@ -33,7 +18,11 @@ namespace Test
         public IEnumerable<Column> Columns => this.columns;
         public int ColumnsCount => this.columns.Count;
 
-        public ModelPrototype(Type modelType)
+        private Dictionary<string, MethodInfo> relations = new Dictionary<string, MethodInfo>();
+
+        public string TableName { get; private set; }
+
+        internal ModelPrototype(Type modelType)
         {
             var properties = modelType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             for (int i = 0; i < properties.Length; i++)
@@ -58,6 +47,25 @@ namespace Test
                         this.UpdatedAtColumn = column;
                 }
             }
+
+
+            var methods = modelType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            foreach (var method in methods)
+            {
+                RelationAttribute relationAttribute = method.GetCustomAttribute<RelationAttribute>();
+                if (relationAttribute == null) continue;
+                string name = relationAttribute.Name ?? method.Name.Replace("Relation", "");
+
+                Console.WriteLine("RELATION YES: " + name);
+                this.relations.Add(name, method);
+            }
+            this.TableName = modelType.Name;
+        }
+
+        public MethodInfo GetRelation(string name)
+        {
+            return this.relations[name];
         }
     }
 }

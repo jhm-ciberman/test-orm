@@ -4,26 +4,37 @@ using System.Data;
 
 namespace Test
 {
-    public abstract class Model
+    public abstract class Model<TModel> : IModel where TModel : Model<TModel>, new()
     {
-        private bool exists = false;
+        private static ModelPrototype cached = null;
+
+        internal static ModelPrototype GetPrototype()
+        {
+            if (Model<TModel>.cached != null) 
+                return Model<TModel>.cached;
+
+            Model<TModel>.cached = new ModelPrototype(typeof(TModel));
+
+            return Model<TModel>.cached;
+        }
+
 
         private ModelPrototype prototype;
-
+        private bool exists = false;
         private object[] original;
 
         public Model()
         {
-            this.prototype = ModelPrototype.Get(this);
+            this.prototype = GetPrototype();
             this.original = new object[this.prototype.ColumnsCount];
         }
 
         public virtual string GetTableName()
         {
-            return this.GetType().Name;
+            return this.prototype.TableName;
         }
 
-        public void Fill(DataRow row)
+        public void Fill(IDictionary<string, object> row)
         {
             foreach (var column in this.prototype.Columns)
             {
@@ -62,7 +73,6 @@ namespace Test
         {
             foreach (var column in this.prototype.Columns)
             {
-                Console.WriteLine($"{column.Index} of {this.original.Length}");
                 this.original[column.Index] = column.Property.GetValue(this);
             }
         }
@@ -80,9 +90,44 @@ namespace Test
             return DateTime.Now;
         }
 
-        public HasOne<TRelated> HasOne<TRelated>(string foreignKey, string localKey) where TRelated : Model, new()
+        public static ModelQuery<TModel> NewQuery()
         {
-            return new HasOne<TRelated>(this, foreignKey, localKey);
+            return new ModelQuery<TModel>();
+        }
+
+        public HasOne<TRelated> HasOne<TRelated>(string foreignKey, string localKey) where TRelated : Model<TRelated>, new()
+        {
+            return new HasOne<TRelated>(Model<TRelated>.NewQuery(), this, foreignKey, localKey);
+        }
+
+        private Dictionary<object, object> relations = new Dictionary<object, object>();
+
+        protected TRelated One<TRelated>(string relationName) where TRelated : Model<TRelated>, new()
+        {
+            if (! this.relations.TryGetValue(relationName, out object result))
+            {
+                result = this.GetRelationMethod<TRelated>(relationName).GetResult();
+                this.relations[relationName] = result;
+            }
+
+            return (TRelated) result;
+        }
+
+        private Relation<TRelated> GetRelationMethod<TRelated>(string relationName) where TRelated : Model<TRelated>, new()
+        {
+            return (Relation<TRelated>) this.prototype.GetRelation(relationName).Invoke(this, null);
+        }
+
+        protected IEnumerable<TRelated> Many<TRelated>(string relationName) where TRelated : Model<TRelated>, new()
+        {
+            
+            if (! this.relations.TryGetValue(relationName, out object result))
+            {
+                result = this.GetRelationMethod<TRelated>(relationName).GetResults();
+                this.relations[relationName] = result;
+            }
+
+            return (IEnumerable<TRelated>) result;
         }
 
         protected bool PerformInsert()

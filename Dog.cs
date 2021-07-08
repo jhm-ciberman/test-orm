@@ -2,7 +2,7 @@ using System;
 
 namespace Test
 {
-    public class Dog : Model
+    public class Dog : Model<Dog>
     {
         [PrimaryKey] public int DogId { get; set; }
         [Column] public int OwnerId { get; set; }
@@ -10,7 +10,7 @@ namespace Test
         [CreatedAt] public DateTime CreatedAt { get; set; }
         [UpdatedAt] public DateTime UpdatedAt { get; set; }
 
-        public Relation<Person> OwnerRelation => this.HasOne<Person>("OwnerId", "DogId");
+        [Relation] public Relation<Person> OwnerRelation() => this.HasOne<Person>("OwnerId", "DogId");
         public Dog()
         {
             //

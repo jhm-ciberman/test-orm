@@ -10,19 +10,19 @@ namespace Test
         {
             public bool isAutoIncrement = true;
             private int maxId = 0;
-            private string primaryKeyName;
+            public string PrimaryKeyName { get; private set; }
             private List<IDictionary<string, object>> data = new List<IDictionary<string, object>>();
 
             public Table(string primaryKeyName)
             {
-                this.primaryKeyName = primaryKeyName;
+                this.PrimaryKeyName = primaryKeyName;
             }
 
             public int Insert(IDictionary<string, object> row)
             {
                 var data = new Dictionary<string, object>(row);
                 if (this.isAutoIncrement)
-                    data[this.primaryKeyName] = ++this.maxId;
+                    data[this.PrimaryKeyName] = ++this.maxId;
 
                 this.data.Add(data);
                 return this.maxId;
@@ -37,7 +37,7 @@ namespace Test
 
             public IDictionary<string, object> Find(object primaryKey)
             {
-                return this.data.FirstOrDefault(row => object.Equals(row[this.primaryKeyName], primaryKey));
+                return this.data.FirstOrDefault(row => object.Equals(row[this.PrimaryKeyName], primaryKey));
             }
 
             public IDictionary<string, object> Find(string columnName, object value)
@@ -61,7 +61,7 @@ namespace Test
         public static int InsertGetId(string tableName, IDictionary<string, object> row)
         {
             int pk = tables[tableName].Insert(row);
-            Console.WriteLine($"Inserted:  (new id={pk})");
+            Console.WriteLine($"Inserted:  ({tables[tableName].PrimaryKeyName}={pk})");
             foreach (var attr in row)
                 Console.WriteLine($"    {attr.Key} = {attr.Value}");
             return pk;
@@ -69,22 +69,22 @@ namespace Test
 
         public static void Update(string tableName, object primaryKey, IDictionary<string, object> row)
         {
-            Console.WriteLine($"Updated: (id={primaryKey})");
+            Console.WriteLine($"Updated: ({tables[tableName].PrimaryKeyName}={primaryKey})");
             foreach (var attr in row)
                 Console.WriteLine($"    {attr.Key} = {attr.Value}");
             tables[tableName].Update(primaryKey, row);
         }
 
-        public static IDictionary<string, object> Select(string tableName, object primaryKey)
+        public static IDictionary<string, object> Select(string tableName, object id)
         {
-            Console.WriteLine($"Selected: (id={primaryKey})");
-            return tables[tableName].Find(primaryKey);
+            Console.WriteLine($"select * from {tableName} where {tables[tableName].PrimaryKeyName} = {Convert.ToInt32(id)}");
+            return tables[tableName].Find(id);
         }
 
-        public static IDictionary<string, object> Select(string tableName, string columnName, object primaryKey)
+        public static IDictionary<string, object> Select(string tableName, string columnName, object value)
         {
-            Console.WriteLine($"Selected: ({columnName}={primaryKey})");
-            return tables[tableName].Find(columnName, primaryKey);
+            Console.WriteLine($"select * from {tableName} where {columnName} = {Convert.ToInt32(value)}");
+            return tables[tableName].Find(columnName, value);
         }
     }
 }

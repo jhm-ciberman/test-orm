@@ -10,9 +10,16 @@ namespace Test
             DB.CreateTable("Dog", "DogId");
             DB.CreateTable("Person", "PersonId");
 
+            Person jorge = new Person();
+            jorge.Name = "Jorge";
+            jorge.Save();
+
             Dog dog1 = new Dog();
             dog1.Name = "Pepe el perro";
+            dog1.OwnerId = jorge.PersonId;
             dog1.Save();
+
+            Console.WriteLine("MY DOG IS: " + jorge.Dog.Name);
 
             Dog dog2 = new Dog();
             dog2.Name = "Juancho el perro";
